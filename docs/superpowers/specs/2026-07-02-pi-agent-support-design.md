@@ -15,7 +15,7 @@ pi --mode json --session <id>?   [--tools read,grep,find,ls]?   [@<imagePath> ..
 ```
 
 - `--mode json`: pi's single-shot, non-interactive event-stream mode (`src/modes/print-mode.ts` in pi-mono — confirmed single prompt in, JSON events out, process exits). This is pi's direct analog of Claude's `-p --output-format stream-json` and Codex's `exec --json`.
-- Session continuity: pi's `--session <path|id>` natively resumes full history (like Claude's `--resume`, unlike Codex's thread model). The first line of JSON-mode output is always a session header `{"type":"session","id":"<uuid>",...}`; the adapter captures that id and the bridge's session catalog stores it under a new `sessionKind: 'pi-session'`.
+- Session continuity: pi's `--session <path|id>` natively resumes full history (like Claude's `--resume`, unlike Codex's thread model). The first line of JSON-mode output is normally a session header `{"type":"session","id":"<uuid>",...}`; the adapter captures that id and the bridge's session catalog stores it under a new `sessionKind: 'pi-session'`. (pi can exit before ever reaching print/json mode — e.g. an unresolvable `@path` file argument — in which case there's no header line at all; this is just the existing non-zero-exit/no-stdout fallback path already handled by the Claude/Codex adapters, not a new case to design for.)
 - Prompt delivery: **entirely via stdin**, no positional message argument. pi's CLI merges piped stdin content into the initial message even when no trailing message argument is given (confirmed via `src/cli/initial-message.ts` in pi-mono: `stdinContent` alone becomes `initialMessage` when `parsed.messages` is empty). This reuses the existing `prefixBridgeSystemPrompt` stdin-prefix technique already built for Codex — no new file-based system-prompt mechanism, and it sidesteps the Windows argv/cmd.exe-escaping bug that previously bit the Claude adapter (see `src/agent/claude/adapter.ts` comment), since the prompt text never touches argv.
 - Images: passed as `@<absolute-path>` positional argv tokens (pi's CLI file-inclusion syntax), one per accepted image attachment — the same shape as Codex's `--image <path>` flags, and equally low-risk on argv since the paths come from the bridge's own media cache, never from user-controlled text.
 - No `--model` / `--provider` flags (see Model selection below).
@@ -49,7 +49,12 @@ pi --mode json --session <id>?   [--tools read,grep,find,ls]?   [@<imagePath> ..
     permissions: { maxAccess: profile.permissions.maxAccess },
   }
   ```
-- `src/bot/run-flow.ts` — extend the `images` condition (currently `capability.agentId === 'codex'`) to include `'pi'`; extend the session-catalog resume branch (currently `if (catalogEntry?.agentId === 'claude') ... else if (catalogEntry?.agentId === 'codex')`) with a `'pi'` branch using `sessionId`/`resumeFrom` like Claude (native history).
+- `src/bot/run-flow.ts` — three call sites need a `'pi'` branch, all treating pi like Claude (native history, `sessionId`, no `threadId`) except the first:
+  - the `images` condition (currently `capability.agentId === 'codex'`) — extend to include `'pi'` (pi does need `@path` image tokens, unlike Claude)
+  - the session-catalog **read**/resume branch (currently `if (catalogEntry?.agentId === 'claude') ... else if (catalogEntry?.agentId === 'codex')`) — add a `'pi'` branch using `sessionId`/`resumeFrom` like Claude
+  - `recordRunSessionEvent` (the session-catalog **write** side, same file) — currently only handles `capability.agentId === 'claude' && event.sessionId` and `capability.agentId === 'codex' && event.threadId`; without a `'pi'` branch here a pi session id from `done`/`system` events is never persisted, silently breaking continuity even if the read side is fixed.
+- `src/bot/comments.ts` — the cloud-doc comments flow duplicates the same `capability.agentId === 'claude'` / `=== 'codex'` ternaries independently (resume-eligibility check, `threadId` selection, and the `system` event sessionId capture around line 326). Needs the same `'pi'`-as-Claude treatment in parallel with `run-flow.ts`.
+- `src/session/catalog.ts` — `isValidAgentEntry`/`assertAgentIdentity` currently encode a **binary** invariant: `agentId === 'claude'` requires `sessionId` and forbids `threadId`, and *everything else* (i.e. today, only `codex`) requires `threadId` and forbids `sessionId`. Since pi behaves like Claude (sessionId, no threadId), both functions must explicitly add `agentId === 'pi'` to the Claude-shaped branch — leaving the `else` branch as "everything not claude" would make it require a `threadId` for pi entries and throw (`'Codex catalog entries require threadId...'`) on every pi session write. This is a correctness-critical fix, not a cosmetic one.
 
 ## Permission mapping
 
@@ -84,7 +89,7 @@ export interface PiConfig {
 
 Profile isolation: default to a profile-scoped `PI_CODING_AGENT_DIR` (`~/.lark-channel/profiles/<profile>/pi-home`), mirroring `CODEX_HOME`/`inheritCodexHome`. `inheritPiHome: true` opts a profile back into pi's global `~/.pi/agent` (shared login/sessions/extensions across profiles) — same escape hatch Codex offers.
 
-`src/cli/profile-bootstrap.ts`: add `createBootstrapPiConfig(binaryPath?)` mirroring `createBootstrapCodexConfig` (resolve executable, `realpath`, record), wired into `createProfileConfig` when `agentKind === 'pi'`; `mkdir` the profile's `pi-home` dir when `!inheritPiHome`.
+`src/cli/profile-bootstrap.ts`: add `createBootstrapPiConfig(binaryPath?)` mirroring what `createBootstrapCodexConfig` **actually does today** — resolve the executable via `resolveExecutablePath` and record `{ binaryPath }`. (Correction from an earlier draft of this spec: the existing function does *not* populate `realpath`/`sha256`/`owner`/`mode` despite `CodexConfig` declaring those fields — there is no working pinning/hash-verification logic anywhere in the codebase to mirror. `PiConfig` can keep those optional fields for future parity, but the bootstrap function should only fill in what Codex's actually fills in today, not aspirational fields.) Wire into `createProfileConfig` when `agentKind === 'pi'`; `mkdir` the profile's `pi-home` dir when `!inheritPiHome`.
 
 `src/agent/preflight.ts`: `LocalAgentId` gains `'pi'`; `isAgentPreflightDiagnostic` accepts `'pi'`.
 
@@ -92,13 +97,16 @@ Profile isolation: default to a profile-scoped `PI_CODING_AGENT_DIR` (`~/.lark-c
 
 ## Model selection
 
-Not exposed in `/config` for v1. No `--model`/`--provider` flags are passed to `pi`; it uses its own already-configured default (last-used model / logged-in provider). `src/agent/models.ts`'s `supportedModels('pi')` returns a single `[DEFAULT_MODEL]` option, so the `/config` model picker degrades to "跟随默认" only rather than a hardcoded list — pi's model space spans multiple providers and curating it now would be premature. Revisit once there's a concrete need.
+Not exposed in `/config` for v1. No `--model`/`--provider` flags are passed to `pi`; it uses its own already-configured default (last-used model / logged-in provider).
+
+`src/agent/models.ts` needs to actually be touched, not just described: `supportedModels()` currently does `agentKind === 'codex' ? CODEX_MODELS : CLAUDE_MODELS` — a binary ternary that would silently hand a `pi` profile Claude's model list today. Add a `PI_MODELS: ModelOption[] = [{ value: DEFAULT_MODEL, label: '跟随默认（不指定）' }]` and change `supportedModels` to a real 3-way switch on `agentKind`. This makes the `/config` model picker degrade to "跟随默认" only for pi rather than a hardcoded list — pi's model space spans multiple providers and curating it now would be premature. Revisit once there's a concrete need.
 
 ## CLI wizard & docs
 
 - First-run QR wizard's "choose which agent to initialize" step gains a `pi` option.
-- Every remaining `agentKind === 'codex' ? ... : ...` binary/config branch (in `src/cli/index.ts`, `src/cli/commands/{start,service,migrate}.ts`, `src/commands/index.ts`, `src/config/migrate-v2.ts`, `src/config/profile-store.ts`, `src/runtime/profile-runtime.ts`, `src/session/catalog.ts`, `src/bot/session-catalog-identity.ts`) becomes a 3-way switch/lookup keyed by `AgentKind`. Exact call sites to be enumerated with a codebase search during implementation.
-- `README.md` / `README.zh.md`: add `pi` to prerequisites (link to pi.dev), the profile example table (`lark-channel-bridge start --profile pi --agent pi`), and the permission-mode mapping table (new "Pi mode" column: `full`/`workspace` → no restriction, `read-only` → `--tools read,grep,find,ls`), plus the workspace-sandbox-gap note from the Permission mapping section above. Check `tests/unit/docs/readme-contract.test.ts` — README content may be contract-tested against code, so table edits must stay in sync with whatever that test asserts.
+- `src/session/catalog.ts` and `src/agent/models.ts` are covered explicitly above (Adapter architecture / Model selection sections) — not generic ternary cleanup, both have correctness-critical binary invariants today.
+- Every remaining `agentKind === 'codex' ? ... : ...` binary/config branch (in `src/cli/index.ts`, `src/cli/commands/{start,service,migrate}.ts`, `src/commands/index.ts`, `src/config/migrate-v2.ts`, `src/config/profile-store.ts`, `src/runtime/profile-runtime.ts`, `src/bot/session-catalog-identity.ts`) becomes a 3-way switch/lookup keyed by `AgentKind`. Exact call sites to be enumerated with a codebase search during implementation.
+- `README.md` / `README.zh.md`: add `pi` to prerequisites (link to pi.dev), the profile example table (`lark-channel-bridge start --profile pi --agent pi`), and the permission-mode mapping table (new "Pi mode" column: `full`/`workspace` → no restriction, `read-only` → `--tools read,grep,find,ls`), plus the workspace-sandbox-gap note from the Permission mapping section above. (`tests/unit/docs/readme-contract.test.ts` only asserts presence/absence of specific phrases, not the profile-example or permission-mode tables themselves, so there's no contract risk in editing those tables — but re-check it isn't asserting on wording this change touches.)
 
 ## Automated testing
 
@@ -106,7 +114,7 @@ Mirror the existing Codex test surface:
 
 - **`tests/unit`**: `buildPiArgs` (read-only vs workspace/full, with/without session id, with/without images), `PiJsonlTranslator` (every event type → `AgentEvent`, including error/abort paths), `AgentRunOptions.accessMode` passthrough in `run-executor`, `PiConfig` validation in `profile-schema`.
 - **`tests/process`**: a `pi`-adapter process-level test analogous to `tests/process/codex-adapter.test.ts` — spawn a fake `pi` script emitting canned JSON-mode output, assert translated events plus `stop()`/`waitForExit()` behavior.
-- **`tests/integration`**: profile bootstrap with `agentKind: 'pi'`, `/status` and `/config` rendering for a pi profile, wizard agent-selection covering pi.
+- **`tests/integration`**: profile bootstrap with `agentKind: 'pi'`, `/status` and `/config` rendering for a pi profile, wizard agent-selection covering pi, session-catalog round-trip for a `pi` entry (write via `recordRunSessionEvent`, read back via the resume branch, in both `run-flow.ts` and `bot/comments.ts`), and a `session/catalog.ts` unit test asserting a pi entry with `sessionId`/no `threadId` is accepted (not rejected by `assertAgentIdentity`).
 
 ## Manual end-to-end verification (post-implementation, not automated)
 
