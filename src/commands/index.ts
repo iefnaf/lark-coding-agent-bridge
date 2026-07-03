@@ -1157,9 +1157,11 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
     buildDoctorReport(ctx, {
       workspaceCheck: `ok (${workspace.cwdRealpath})`,
       policyCheck:
-        runtimeAccess.label === 'sandbox'
-          ? `ok sandbox=${policy.sandbox}`
-          : `ok ${runtimeAccess.label}=${policy.permissionMode}`,
+        ctx.controls.profileConfig.agentKind === 'claude'
+          ? `ok ${runtimeAccess.label}=${policy.permissionMode}`
+          : ctx.controls.profileConfig.agentKind === 'pi'
+            ? `ok ${runtimeAccess.label}=${policy.accessMode}`
+            : `ok ${runtimeAccess.label}=${policy.sandbox}`,
       echoCheck,
     });
 
