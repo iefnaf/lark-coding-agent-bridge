@@ -215,11 +215,11 @@ Mode mapping:
 
 | Bridge access | Claude permission mode | Codex mode | Pi mode |
 |---|---|---|---|
-| `full` | `bypassPermissions` | `danger-full-access` | no restriction |
-| `workspace` | `acceptEdits` | `workspace-write` | no restriction |
+| `full` | `bypassPermissions` | `danger-full-access` | unrestricted |
+| `workspace` | `acceptEdits` | `workspace-write` | unrestricted |
 | `read-only` | `plan` | `read-only` | `--tools read,grep,find,ls` |
 
-Pi has no built-in workspace-scoped sandbox: `workspace` and `full` behave identically for Pi (no `--tools` restriction). Users wanting filesystem/network confinement for Pi should containerize it themselves — see Pi's own containerization docs.
+Pi has no built-in workspace-scoped sandbox: `workspace` and `full` behave identically for Pi (no `--tools` restriction). Users wanting filesystem/network confinement for Pi should containerize it themselves — see https://pi.dev for Pi's own documentation.
 
 The legacy `sandbox` field is still readable for old configs. After the bridge saves the profile, it migrates that setting to canonical `permissions`.
 
