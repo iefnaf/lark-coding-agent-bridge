@@ -394,6 +394,13 @@ async function resolveConvertedLegacyDefaultWorkspace(
   return realpath(appPaths.defaultWorkspaceDir);
 }
 
+// Unlike migrate.ts's legacy profile-name heuristic (which guesses agentKind
+// for pre-existing v1 configs and deliberately has no 'pi' case, since pi has
+// no legacy installations to guess about), `profile` here is often the value
+// this same bootstrap flow just set moments earlier from agent
+// auto-detection/wizard selection — so decoding 'pi' back out of it is not a
+// guess, it's required for a freshly-selected pi profile to bootstrap as pi
+// instead of silently falling back to claude.
 function resolveBootstrapAgent(
   requestedAgent: AgentKind | undefined,
   profile: string | undefined,
