@@ -29,9 +29,9 @@ For a product walkthrough, see the [Feishu document](https://larkcommunity.feish
 ## Install
 
 ```bash
-npm i -g lark-channel-bridge
+npm i -g @alexlikevibe/lark-channel-bridge
 # or
-pnpm add -g lark-channel-bridge
+pnpm add -g @alexlikevibe/lark-channel-bridge
 ```
 
 ## First run

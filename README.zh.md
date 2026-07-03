@@ -29,9 +29,9 @@
 ## 安装
 
 ```bash
-npm i -g lark-channel-bridge
+npm i -g @alexlikevibe/lark-channel-bridge
 # 或
-pnpm add -g lark-channel-bridge
+pnpm add -g @alexlikevibe/lark-channel-bridge
 ```
 
 ## 首次启动
