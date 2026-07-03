@@ -252,11 +252,13 @@ async function reportConnectAfter(
     console.log(
       `✓ ${verbZh}  bot: ${entry.botName} (${entry.appId})  agent: ${agent.displayName} (${agent.id})  进程: ${entry.id}`,
     );
+    console.log(`  daemon env: ~/.lark-channel/daemon.env 或 ~/.lark-channel/profiles/${profile}/daemon.env`);
     return;
   }
   console.warn(`⚠ 已下发指令,但 30 秒内未观察到 bot 连接成功 (${verb})。`);
   console.warn(`  查看日志: tail -f ${daemonStderrPath(profile)}`);
   console.warn(`              tail -f ${daemonStdoutPath(profile)}`);
+  console.warn(`  daemon env: ~/.lark-channel/daemon.env 或 ~/.lark-channel/profiles/${profile}/daemon.env`);
 }
 
 /**
