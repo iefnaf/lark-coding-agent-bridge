@@ -89,6 +89,17 @@ Platform mapping:
 
 Daemon logs are under `~/.lark-channel/profiles/<profile>/logs/daemon/`.
 
+Daemon services do not inherit arbitrary variables from the shell that ran `start`. For provider API keys or proxy settings needed by daemon-mode agents, create daemon env files:
+
+```env
+# ~/.lark-channel/daemon.env              # shared by all profiles
+# ~/.lark-channel/profiles/<profile>/daemon.env  # overrides per profile
+ZAI_CODING_CN_API_KEY=xxx
+HTTPS_PROXY=http://127.0.0.1:7890
+```
+
+Restart the service after editing these files. Env files only provide credentials/settings; they do not select the provider or model. If multiple provider keys are present, the underlying agent CLI and the profile model preference still decide what to use.
+
 ### Multiple profiles: Claude, Codex, and Pi
 
 By default, the bridge starts with the currently selected profile. Use `profile use <name>` to change it. Each profile keeps its own app credentials, sessions, working directories, and logs. Create multiple profiles only when you need to connect multiple PersonalAgent apps, or run Claude, Codex, and Pi as separate bots:
