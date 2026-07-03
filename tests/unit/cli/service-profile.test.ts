@@ -89,6 +89,7 @@ describe('profile-aware service commands', () => {
       appPaths: {
         profile: 'codex-dev',
         rootDir: '/tmp/lark-channel-home',
+        profileDir: '/tmp/lark-channel-home/profiles/codex-dev',
         larkCliConfigDir: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli',
         larkCliSourceConfigFile: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli-source/config.json',
         profileLockFile: '/tmp/lark-channel-home/registry/locks/profile/codex-dev.lock',
@@ -216,6 +217,7 @@ describe('profile-aware service commands', () => {
         appPaths: {
           profile: 'codex-dev',
           rootDir: '/tmp/lark-channel-home',
+          profileDir: '/tmp/lark-channel-home/profiles/codex-dev',
           larkCliConfigDir: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli',
           larkCliSourceConfigFile: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli-source/config.json',
           profileLockFile: '/tmp/lark-channel-home/registry/locks/profile/codex-dev.lock',
@@ -238,6 +240,7 @@ describe('profile-aware service commands', () => {
         appPaths: {
           profile: 'codex-dev',
           rootDir: '/tmp/lark-channel-home',
+          profileDir: '/tmp/lark-channel-home/profiles/codex-dev',
           larkCliConfigDir: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli',
           larkCliSourceConfigFile: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli-source/config.json',
           profileLockFile: '/tmp/lark-channel-home/registry/locks/profile/codex-dev.lock',
@@ -251,6 +254,7 @@ describe('profile-aware service commands', () => {
         appPaths: {
           profile: 'codex-dev',
           rootDir: '/tmp/lark-channel-home',
+          profileDir: '/tmp/lark-channel-home/profiles/codex-dev',
           larkCliConfigDir: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli',
           larkCliSourceConfigFile: '/tmp/lark-channel-home/profiles/codex-dev/lark-cli-source/config.json',
           profileLockFile: '/tmp/lark-channel-home/registry/locks/profile/codex-dev.lock',
@@ -419,6 +423,8 @@ describe('profile-aware service commands', () => {
     mocks.resolveProfileRuntime.mockResolvedValue({
       profile: 'claude',
       appPaths: {
+        rootDir: '/tmp/lark-channel-home',
+        profileDir: '/tmp/lark-channel-home/profiles/claude',
         profileLockFile: '/tmp/lark-channel-home/registry/locks/profile/claude.lock',
         appLockFile: (appId: string) => `/tmp/lark-channel-home/registry/locks/app/${appId}.lock`,
       },

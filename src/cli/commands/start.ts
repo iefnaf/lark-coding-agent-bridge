@@ -23,6 +23,7 @@ import type { AppConfig } from '../../config/schema';
 import { isComplete } from '../../config/schema';
 import { configureLogger, gcOldLogs, log, reportError } from '../../core/logger';
 import { loadTelemetryAdapter, telemetry } from '../../core/telemetry';
+import { applyDaemonEnvFiles } from '../../daemon/env-file';
 import { gcMediaCache } from '../../media/cache';
 import { preFlightChecks } from '../preflight';
 import { promptAndStopActiveBridgeMigrationConflict } from './migrate';
@@ -99,7 +100,17 @@ export async function runStart(opts: StartOptions): Promise<void> {
   const configPath = runtime.configPath;
   const appPaths = runtime.appPaths;
   let profileConfig = runtime.profileConfig;
+  const daemonEnv = await applyDaemonEnvFiles(appPaths);
   configureLogger({ logsDir: appPaths.logsDir });
+  for (const warning of daemonEnv.warnings) {
+    log.warn('daemon-env', 'invalid-line', { ...warning });
+  }
+  if (daemonEnv.loadedFiles.length > 0) {
+    log.info('daemon-env', 'loaded', {
+      files: daemonEnv.loadedFiles,
+      count: daemonEnv.loadedFiles.length,
+    });
+  }
 
   await preFlightChecks({
     skipCheckLarkCli: opts.skipCheckLarkCli,

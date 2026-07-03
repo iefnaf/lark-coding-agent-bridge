@@ -89,6 +89,17 @@ lark-channel-bridge unregister [--profile <name>]
 
 daemon 日志在 `~/.lark-channel/profiles/<profile>/logs/daemon/`。
 
+daemon 服务不会继承执行 `start` 时 shell 里的任意环境变量。如果后台 agent/provider 需要 API key 或代理配置，请写入 daemon env 文件：
+
+```env
+# ~/.lark-channel/daemon.env                    # 所有 profile 共享
+# ~/.lark-channel/profiles/<profile>/daemon.env # profile 级覆盖
+ZAI_CODING_CN_API_KEY=xxx
+HTTPS_PROXY=http://127.0.0.1:7890
+```
+
+修改后需要重启服务。env 文件只提供凭据和环境配置，不负责选择 provider 或模型；如果同时存在多个 provider key，实际使用哪个 provider/模型仍由底层 agent CLI 和 profile 的模型偏好决定。
+
 ### 多 profile：分别运行 Claude、Codex 和 pi
 
 默认情况下，bridge 使用当前激活的 profile；可以通过 `profile use <name>` 切换。每个 profile 会维护独立的应用凭据、会话、工作目录和日志。只有在需要同时连接多个 PersonalAgent 应用，或分别运行 Claude、Codex 和 pi 时，才需要创建多个 profile：

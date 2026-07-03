@@ -150,6 +150,27 @@ describe('start runtime agent factory', () => {
       expect(availability.diagnostic.command).toBe('pi');
     }
   });
+
+  it('loads daemon env before startup code resolves providers or creates agents', async () => {
+    const source = await readFile(join(process.cwd(), 'src/cli/commands/start.ts'), 'utf8');
+    const runStartIndex = source.indexOf('export async function runStart');
+    const envIndex = source.indexOf('applyDaemonEnvFiles(appPaths)', runStartIndex);
+    const loggerIndex = source.indexOf('configureLogger({ logsDir: appPaths.logsDir })', runStartIndex);
+    const preflightIndex = source.indexOf('await preFlightChecks({', runStartIndex);
+    const telemetryIndex = source.indexOf('await loadTelemetryAdapter({', runStartIndex);
+    const agentIndex = source.indexOf('createRuntimeAgent(profileConfig', runStartIndex);
+
+    expect(runStartIndex).toBeGreaterThanOrEqual(0);
+    expect(envIndex).toBeGreaterThanOrEqual(0);
+    expect(loggerIndex).toBeGreaterThanOrEqual(0);
+    expect(preflightIndex).toBeGreaterThanOrEqual(0);
+    expect(telemetryIndex).toBeGreaterThanOrEqual(0);
+    expect(agentIndex).toBeGreaterThanOrEqual(0);
+    expect(envIndex).toBeLessThan(loggerIndex);
+    expect(envIndex).toBeLessThan(preflightIndex);
+    expect(envIndex).toBeLessThan(telemetryIndex);
+    expect(envIndex).toBeLessThan(agentIndex);
+  });
 });
 
 function appAccount() {
