@@ -2,6 +2,7 @@ import { isComplete } from '../../config/schema';
 import { createInterface } from 'node:readline';
 import { paths } from '../../config/paths';
 import { loadRootConfig, readActiveProfile } from '../../config/profile-store';
+import { daemonEnvFilePaths } from '../../daemon/env-file';
 import { daemonStderrPath, daemonStdoutPath } from '../../daemon/paths';
 import {
   getServiceAdapter,
@@ -228,8 +229,9 @@ async function reportConnectAfter(
   profile: string,
   fn: () => ServiceResultLike,
 ): Promise<void> {
-  const { cfg } = await resolveProfileRuntime({ profile, allowBootstrap: false });
+  const { cfg, appPaths } = await resolveProfileRuntime({ profile, allowBootstrap: false });
   const appId = cfg.accounts?.app?.id ?? '';
+  const { global: daemonEnvGlobalPath, profile: daemonEnvProfilePath } = daemonEnvFilePaths(appPaths);
   const beforePids = new Set(
     readAndPrune()
       .filter((e) => e.appId === appId && e.profileName === profile)
@@ -252,13 +254,13 @@ async function reportConnectAfter(
     console.log(
       `✓ ${verbZh}  bot: ${entry.botName} (${entry.appId})  agent: ${agent.displayName} (${agent.id})  进程: ${entry.id}`,
     );
-    console.log(`  daemon env: ~/.lark-channel/daemon.env 或 ~/.lark-channel/profiles/${profile}/daemon.env`);
+    console.log(`  daemon env: ${daemonEnvGlobalPath} 或 ${daemonEnvProfilePath}`);
     return;
   }
   console.warn(`⚠ 已下发指令,但 30 秒内未观察到 bot 连接成功 (${verb})。`);
   console.warn(`  查看日志: tail -f ${daemonStderrPath(profile)}`);
   console.warn(`              tail -f ${daemonStdoutPath(profile)}`);
-  console.warn(`  daemon env: ~/.lark-channel/daemon.env 或 ~/.lark-channel/profiles/${profile}/daemon.env`);
+  console.warn(`  daemon env: ${daemonEnvGlobalPath} 或 ${daemonEnvProfilePath}`);
 }
 
 /**
