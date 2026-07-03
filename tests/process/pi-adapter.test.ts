@@ -137,6 +137,43 @@ describe('PiAdapter process contract', () => {
     expect((await readRecord(fake.recordPath)).env.PI_CODING_AGENT_DIR).toBeUndefined();
   });
 
+  it('injects the active bridge profile env while preserving the pi home override', async () => {
+    const fake = await createFakePi({ lines: [{ type: 'agent_end', messages: [] }] });
+    cleanup.push(fake.dir);
+    const rootDir = join(fake.dir, 'channel-home');
+    const configPath = join(rootDir, 'config.custom.json');
+    const larkCliConfigDir = join(rootDir, 'profiles', 'pi-dev', 'lark-cli');
+    const larkCliSourceConfigFile = join(rootDir, 'profiles', 'pi-dev', 'lark-cli-source', 'config.json');
+
+    const run = new PiAdapter({
+      binary: fake.path,
+      profileStateDir: fake.dir,
+      larkChannel: {
+        profile: 'pi-dev',
+        rootDir,
+        configPath,
+        larkCliConfigDir,
+        larkCliSourceConfigFile,
+      },
+    }).run({
+      runId: 'run-profile-env',
+      prompt: 'profile',
+      cwd: await realpath(fake.dir),
+    });
+
+    await collect(run.events);
+    const record = await readRecord(fake.recordPath);
+
+    expect(record.env).toMatchObject({
+      LARK_CHANNEL: '1',
+      LARK_CHANNEL_PROFILE: 'pi-dev',
+      LARK_CHANNEL_HOME: rootDir,
+      LARK_CHANNEL_CONFIG: larkCliSourceConfigFile,
+      LARKSUITE_CLI_CONFIG_DIR: larkCliConfigDir,
+      PI_CODING_AGENT_DIR: join(fake.dir, 'pi-home'),
+    });
+  });
+
   it('includes stderr when the process exits non-zero before a terminal event', async () => {
     const fake = await createFakePi({
       lines: [
@@ -244,7 +281,14 @@ async function createFakePi(options: {
       '    argv: process.argv.slice(2),',
       '    cwd: process.cwd(),',
       '    stdin,',
-      '    env: { PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR },',
+      '    env: {',
+      '      LARK_CHANNEL: process.env.LARK_CHANNEL,',
+      '      LARK_CHANNEL_PROFILE: process.env.LARK_CHANNEL_PROFILE,',
+      '      LARK_CHANNEL_HOME: process.env.LARK_CHANNEL_HOME,',
+      '      LARK_CHANNEL_CONFIG: process.env.LARK_CHANNEL_CONFIG,',
+      '      LARKSUITE_CLI_CONFIG_DIR: process.env.LARKSUITE_CLI_CONFIG_DIR,',
+      '      PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,',
+      '    },',
       '  }));',
       `  const lines = ${JSON.stringify(options.lines)};`,
       '  for (const line of lines) console.log(JSON.stringify(line));',
@@ -258,8 +302,18 @@ async function createFakePi(options: {
   return { path, dir, recordPath };
 }
 
-async function readRecord(
-  path: string,
-): Promise<{ argv: string[]; cwd: string; stdin: string; env: { PI_CODING_AGENT_DIR?: string } }> {
+async function readRecord(path: string): Promise<{
+  argv: string[];
+  cwd: string;
+  stdin: string;
+  env: {
+    LARK_CHANNEL?: string;
+    LARK_CHANNEL_PROFILE?: string;
+    LARK_CHANNEL_HOME?: string;
+    LARK_CHANNEL_CONFIG?: string;
+    LARKSUITE_CLI_CONFIG_DIR?: string;
+    PI_CODING_AGENT_DIR?: string;
+  };
+}> {
   return JSON.parse(await readFile(path, 'utf8'));
 }
