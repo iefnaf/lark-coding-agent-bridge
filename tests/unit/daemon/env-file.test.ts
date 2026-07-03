@@ -105,4 +105,29 @@ describe('applyDaemonEnvFiles', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  // Characterization test: once applyDaemonEnvFiles is wired into startup
+  // (before provider/agent code reads process.env), profile env values must
+  // win over global env values. This documents that override contract so a
+  // future refactor of the loader can't silently flip precedence.
+  it('applies env before code reads process-style environment', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lark-channel-env-'));
+    try {
+      const paths = resolveAppPaths({ rootDir: root, profile: 'pi' });
+      await mkdir(paths.profileDir, { recursive: true });
+      await writeFile(join(root, 'daemon.env'), 'ZAI_CODING_CN_API_KEY=global-key\n', 'utf8');
+      await writeFile(
+        join(paths.profileDir, 'daemon.env'),
+        'ZAI_CODING_CN_API_KEY=profile-key\n',
+        'utf8',
+      );
+
+      const env: NodeJS.ProcessEnv = {};
+      await applyDaemonEnvFiles(paths, { env });
+
+      expect(env.ZAI_CODING_CN_API_KEY).toBe('profile-key');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
